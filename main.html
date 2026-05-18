@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>과목별 노트 정리</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+        }
+        body {
+            display: flex;
+            height: 100vh;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        /* 사이드바 (과목 목록) */
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .sidebar h2 {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        .subject-list {
+            list-style: none;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .subject-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #34495e;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: flex;
+            justify-content: space-between; /* 텍스트와 삭제 버튼 양끝 정렬 */
+            align-items: center;
+        }
+        .subject-item:hover, .subject-item.active {
+            background-color: #1abc9c;
+        }
+        .subject-text {
+            flex-grow: 1;
+        }
+        .delete-subject-btn {
+            background: none;
+            border: none;
+            color: #ff7675;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0 5px;
+        }
+        .delete-subject-btn:hover {
+            color: #d63031;
+        }
+        
+        .add-subject-container {
+            display: flex;
+            margin-top: 10px;
+        }
+        .add-subject-container input {
+            flex-grow: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 4px 0 0 4px;
+        }
+        .add-subject-container button {
+            padding: 8px;
+            border: none;
+            background-color: #1abc9c;
+            color: white;
+            cursor: pointer;
+            border-radius: 0 4px 4px 0;
+        }
+        
+        /* 메인 콘텐츠 (노트 내용) */
+        .main-content {
+            flex-grow: 1;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-header {
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ddd;
+        }
+        .note-input-container {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        .note-input-container textarea {
+            width: 100%;
+            height: 100px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            resize: none;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+        .note-input-container button {
+            align-self: flex-end;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .note-input-container button:hover {
+            background-color: #2980b9;
+        }
+        .note-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+        .note-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .note-date {
+            font-size: 0.8rem;
+            color: #888;
+        }
+        .delete-note-btn {
+            background-color: #ff7675;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .delete-note-btn:hover {
+            background-color: #d63031;
+        }
+        .note-content-text {
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>나의 과목</h2>
+        <ul class="subject-list" id="subjectList">
+            </ul>
+        <div class="add-subject-container">
+            <input type="text" id="newSubjectInput" placeholder="새 과목 이름...">
+            <button onclick="addSubject()">추가</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="main-header">
+            <h1 id="currentSubjectTitle">과목을 선택해주세요</h1>
+        </div>
+        
+        <div class="note-input-container" id="noteInputContainer" style="display: none;">
+            <textarea id="newNoteInput" placeholder="이곳에 노트 내용을 작성하세요..."></textarea>
+            <button onclick="addNote()">노트 저장</button>
+        </div>
+
+        <div class="note-list" id="noteList">
+            </div>
+    </div>
+
+    <script>
+        // 초기 데이터 로드 (로컬 스토리지)
+        let noteData = JSON.parse(localStorage.getItem('myNotes')) || {
+            "국어": [],
+            "수학": [],
+            "영어": []
+        };
+        let currentSubject = null;
+
+        const subjectListEl = document.getElementById('subjectList');
+        const currentSubjectTitleEl = document.getElementById('currentSubjectTitle');
+        const noteInputContainerEl = document.getElementById('noteInputContainer');
+        const noteListEl = document.getElementById('noteList');
+
+        // 데이터 저장 함수
+        function saveData() {
+            localStorage.setItem('myNotes', JSON.stringify(noteData));
+        }
+
+        // 과목 렌더링 함수
+        function renderSubjects() {
+            subjectListEl.innerHTML = '';
+            for (let subject in noteData) {
+                const li = document.createElement('li');
+                li.className = `subject-item ${currentSubject === subject ? 'active' : ''}`;
+                
+                // 과목명 영역
+                const subjectText = document.createElement('span');
+                subjectText.className = 'subject-text';
+                subjectText.textContent = subject;
+                subjectText.onclick = () => selectSubject(subject);
+
+                // 과목 삭제 버튼
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-subject-btn';
+                deleteBtn.innerHTML = '✖';
+                deleteBtn.onclick = (event) => {
+                    event.stopPropagation(); // 클릭 이벤트가 과목 선택으로 넘어가는 것 방지
+                    deleteSubject(subject);
+                };
+
+                li.appendChild(subjectText);
+                li.appendChild(deleteBtn);
+                subjectListEl.appendChild(li);
+            }
+        }
+
+        // 과목 선택 함수
+        function selectSubject(subject) {
+            currentSubject = subject;
+            currentSubjectTitleEl.textContent = subject;
+            noteInputContainerEl.style.display = 'flex';
+            renderSubjects(); 
+            renderNotes();
+        }
+
+        // 과목 추가 함수
+        function addSubject() {
+            const inputEl = document.getElementById('newSubjectInput');
+            const newSubject = inputEl.value.trim();
+            if (newSubject && !noteData[newSubject]) {
+                noteData[newSubject] = [];
+                inputEl.value = '';
+                saveData();
+                renderSubjects();
+                selectSubject(newSubject);
+            } else if (noteData[newSubject]) {
+                alert("이미 존재하는 과목입니다.");
+            }
+        }
+
+        // 과목 삭제 함수 (새로 추가됨)
+        function deleteSubject(subject) {
+            if (confirm(`'${subject}' 과목과 해당 과목의 모든 노트를 삭제하시겠습니까?`)) {
+                delete noteData[subject];
+                saveData();
+                
+                // 만약 현재 보고 있던 과목을 삭제했다면 초기 화면으로 되돌리기
+                if (currentSubject === subject) {
+                    currentSubject = null;
+                    currentSubjectTitleEl.textContent = '과목을 선택해주세요';
+                    noteInputContainerEl.style.display = 'none';
+                    noteListEl.innerHTML = '';
+                }
+                renderSubjects();
+            }
+        }
+
+        // 노트 렌더링 함수
+        function renderNotes() {
+            noteListEl.innerHTML = '';
+            if (!currentSubject) return;
+
+            const notes = noteData[currentSubject];
+            
+            // 최신 노트가 위로 오게 배열을 뒤에서부터 순회 (원래 인덱스 유지 목적)
+            for (let i = notes.length - 1; i >= 0; i--) {
+                const note = notes[i];
+                const noteCard = document.createElement('div');
+                noteCard.className = 'note-card';
+                
+                // 헤더 (날짜 + 삭제버튼)
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'note-header';
+
+                const dateSpan = document.createElement('span');
+                dateSpan.className = 'note-date';
+                dateSpan.textContent = note.date;
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-note-btn';
+                deleteBtn.textContent = '삭제';
+                deleteBtn.onclick = () => deleteNote(i);
+
+                headerDiv.appendChild(dateSpan);
+                headerDiv.appendChild(deleteBtn);
+
+                // 노트 내용
+                const contentText = document.createElement('div');
+                contentText.className = 'note-content-text';
+                contentText.textContent = note.content;
+
+                noteCard.appendChild(headerDiv);
+                noteCard.appendChild(contentText);
+                noteListEl.appendChild(noteCard);
+            }
+        }
+
+        // 노트 추가 함수
+        function addNote() {
+            if (!currentSubject) return;
+            const inputEl = document.getElementById('newNoteInput');
+            const content = inputEl.value.trim();
+            
+            if (content) {
+                const now = new Date();
+                const dateString = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일 ${now.getHours()}:${now.getMinutes()}`;
+                
+                noteData[currentSubject].push({
+                    content: content,
+                    date: dateString
+                });
+                
+                inputEl.value = '';
+                saveData();
+                renderNotes();
+            }
+        }
+
+        // 노트 삭제 함수 (새로 추가됨)
+        function deleteNote(index) {
+            if (confirm('이 노트를 삭제하시겠습니까?')) {
+                noteData[currentSubject].splice(index, 1);
+                saveData();
+                renderNotes();
+            }
+        }
+
+        // 엔터키 이벤트 (새 과목 추가 시)
+        document.getElementById('newSubjectInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') addSubject();
+        });
+
+        // 초기 화면 설정
+        renderSubjects();
+    </script>
+</body>
+</html>
